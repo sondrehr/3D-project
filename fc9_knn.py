@@ -11,28 +11,33 @@ class segNet(nn.Module):
         super(segNet, self).__init__()
 
         self.fc = nn.Sequential(
-            nn.Linear(9, 512),
+            nn.Linear(9, 256),
             nn.ReLU(),
-            nn.BatchNorm1d(512),
-            nn.Linear(512, 3),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Linear(256, 3),
         )
 
     def forward(self, X):
+        
+        
         X = self.fc(X)  
         return X
     
 if __name__ == '__main__':
     LR = 1e-3
-    WEIGHT_DECAY = 1e-5
     EPOCHS = 1
     
     # Load the dataloaders and change labels
-    train_dataloader = torch.load('train_dataloader.pt')
-    val_dataloader = torch.load('val_dataloader.pt')
-    test_dataloader = torch.load('test_dataloader.pt')
+    train_dataloader = torch.load('hsv_train_dataloader.pt')
+    val_dataloader = torch.load('hsv_val_dataloader.pt')
+    test_dataloader = torch.load('hsv_test_dataloader.pt')
     
     # Create the model
     model = segNet()        
+    if torch.cuda.is_available():
+        model = model.cuda()
+    
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     
@@ -45,9 +50,12 @@ if __name__ == '__main__':
     early_stop = False
     for i in range(EPOCHS):
         print('Epoch: ', str(i))
-        for j, (data, labels) in tqdm(enumerate(train_dataloader)):
+        for j, (data, labels) in enumerate(tqdm(train_dataloader)):
             model.train()
             data = data.float()
+            if torch.cuda.is_available():
+                data = data.cuda()
+                labels = labels.cuda()
                         
             optimizer.zero_grad()
             output = model(data)
@@ -61,7 +69,7 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
             
-            if j % 200 == 0:
+            if j % 3000 == 0:
             
                 ## Validate the model
                 model.eval()
@@ -69,6 +77,9 @@ if __name__ == '__main__':
                 correct = 0
                 for (data, labels) in tqdm(val_dataloader):
                     data = data.float()
+                    if torch.cuda.is_available():
+                        data = data.cuda()
+                        labels = labels.cuda()
                         
                     output = model(data)
                     _, predicted = torch.max(output.data, 1)
@@ -79,14 +90,14 @@ if __name__ == '__main__':
                 print('\nValidation accuracy: {}'.format(val_acc))
                 
                 # Save the best model
-                if val_acc > best_acc + 0.006:
+                if val_acc > best_acc + 0.001:
                     best_acc = val_acc
                     index = i * len(train_dataloader) + j
                     torch.save(model.state_dict(), 'best_model.pt')
                     print('Model saved')
                    
                 # early stopping 
-                if i * len(train_dataloader) + j > index + 1000:
+                if i * len(train_dataloader) + j > index + 15000:
                     early_stop = True
                     print('Early stopping')
                     break
@@ -109,6 +120,9 @@ if __name__ == '__main__':
         total = 0
         for i, (data, labels) in enumerate(tqdm(test_dataloader)):
             data = data.float()
+            if torch.cuda.is_available():
+                data = data.cuda()
+                labels = labels.cuda()
                
             output = model(data)
             _, predicted = torch.max(output.data, 1)

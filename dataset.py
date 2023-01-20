@@ -4,6 +4,7 @@ import os
 from torch.utils.data import random_split, DataLoader, TensorDataset
 import glob
 from tqdm import tqdm
+import cv2
 
 
 
@@ -141,6 +142,7 @@ def map_labels(PATH, classes):
 
 
 def normalize_dataset(PATH):
+    print("Normalizing dataset...")
     # open folders
     folders = glob.glob(os.path.join(PATH, "*"))
     for folder in folders:
@@ -153,53 +155,50 @@ def normalize_dataset(PATH):
             if file[-10:] == "reduced.pt":
                 print("processing: {}".format(os.path.basename(file)))
                 data = torch.load(file)
+                
+                # # shift points to positive octant
+                # data[:, 0] -= np.min(data[:, 0])
+                # data[:, 1] -= np.min(data[:, 1])
+                # data[:, 2] -= np.min(data[:, 2])    
                      
-                # print("max_x: ", np.max(data[:, 0]))
-                # print("max_y: ", np.max(data[:, 1]))
-                # print("max_z: ", np.max(data[:, 2]))
-                # print("min_x: ", np.min(data[:, 0]))
-                # print("min_y: ", np.min(data[:, 1]))
-                # print("min_z: ", np.min(data[:, 2]))
-                
-                # move points to positive octant
-                data[:, 0] -= np.min(data[:, 0])
-                data[:, 1] -= np.min(data[:, 1])
-                data[:, 2] -= np.min(data[:, 2])
-                
-                # print("max_x: ", np.max(data[:, 0]))
-                # print("max_y: ", np.max(data[:, 1]))
-                # print("max_z: ", np.max(data[:, 2]))
-                # print("min_x: ", np.min(data[:, 0]))
-                # print("min_y: ", np.min(data[:, 1]))
-                # print("min_z: ", np.min(data[:, 2]))
-                
-                # # normalize points to unit cube
-                # max_x = np.max(data[:, 0])
-                # max_y = np.max(data[:, 1])
-                # max_z = np.max(data[:, 2])
-                # max_all = np.max([max_x, max_y, max_z])
-                
-                # # print("before: ")
-                # # print("max_x: ", np.max(data[:, 0]))
-                # # print("max_y: ", np.max(data[:, 1]))
-                # # print("max_z: ", np.max(data[:, 2]))
-                
-                # data[:, 0] = data[:, 0] / max_all
-                # data[:, 1] = data[:, 1] / max_all
-                # data[:, 2] = data[:, 2] / max_all
-                
-                # print("after: ")
-                # print("max_x: ", np.max(data[:, 0]))
-                # print("max_y: ", np.max(data[:, 1]))
-                # print("max_z: ", np.max(data[:, 2]))
-                
+                # shift points to mean
+                data[:, 0] -= np.mean(data[:, 0])
+                data[:, 1] -= np.mean(data[:, 1])
+                data[:, 2] -= np.mean(data[:, 2])
+
                 name = os.path.basename(file).split(".")[0]
                 torch.save(data, folder + "\\" + name + "_norm.pt")
+    print("Done!")
                 
                 
+def rgb_to_hsv(PATH):
+    print("Converting rgb to hsv...")
+    # open folders
+    folders = glob.glob(os.path.join(PATH, "*"))
+    for folder in folders:
+        print("processing: {}".format(os.path.basename(folder)))
+
+        # open files in folder    
+        files = glob.glob(os.path.join(folder, "*"))
+        for file in files:
+            # process files
+            if file[-7:] == "norm.pt":
+                print("processing: {}".format(os.path.basename(file)))
+                data = torch.load(file)
+                
+                # convert rgb to hsv
+                rgb = data[:, 3:6]
+                hsv = cv2.cvtColor(np.uint8([rgb]), cv2.COLOR_RGB2HSV)[0]
+                data[:, 3:6] = hsv
+                #data = np.concatenate((data, hsv), axis=1)
+                
+                name = os.path.basename(file).split(".")[0]
+                torch.save(data, folder + "\\" + name + "_hsv.pt")
+    print("Done!")
 
 
 def data_to_dataloader(PATH):
+    print("Converting data to dataloader...")
     val_ratio = 0.1
 
     train_dataset = []
@@ -220,7 +219,9 @@ def data_to_dataloader(PATH):
         for file in files:
             
             # process files
+            # if file[-10:] == "mapped3.pt":
             if file[-7:] == "norm.pt":
+            # if file[-6:] == "hsv.pt":
                 print("processing: {}".format(os.path.basename(file)))
                 data = torch.load(file)
                 
@@ -283,9 +284,16 @@ def data_to_dataloader(PATH):
     test_dataloader = DataLoader(test_data, batch_size=128)
 
     ## Save dataloaders
+
     torch.save(train_dataloader, "train_dataloader9.pt")
     torch.save(val_dataloader, "val_dataloader9.pt")
     torch.save(test_dataloader, "test_dataloader9.pt")
+
+    # torch.save(train_dataloader, "hsv_train_dataloader.pt")
+    # torch.save(val_dataloader, "hsv_val_dataloader.pt")
+    # torch.save(test_dataloader, "hsv_test_dataloader.pt")
+    print("Done!")
+
 
                     
                             
@@ -304,7 +312,8 @@ if __name__ == '__main__':
     # map_labels(PATH, CLASSES)
     
     #! 3. Add to increase test accuracy
-    normalize_dataset(PATH)
+    # normalize_dataset(PATH)
+    rgb_to_hsv(PATH)
     
     #! 4. Prepare data for training
     data_to_dataloader(PATH)
