@@ -77,7 +77,7 @@ def reduce_dataset(PATH):
                 print("Before: {}".format(len(data)))
                 
                 data = data[np.random.permutation(len(data))]
-                data = data[:int(len(data)/10)]
+                data = data[:int(len(data)/3)]
                 
                 print("After: {}".format(len(data)))
                 
@@ -150,7 +150,7 @@ def normalize_dataset(PATH):
         files = glob.glob(os.path.join(folder, "*"))
         for file in files:
             # process files
-            if file[-10:] == "mapped3.pt":
+            if file[-10:] == "reduced.pt":
                 print("processing: {}".format(os.path.basename(file)))
                 data = torch.load(file)
                      
@@ -283,16 +283,17 @@ def data_to_dataloader(PATH):
     test_dataloader = DataLoader(test_data, batch_size=128)
 
     ## Save dataloaders
-    torch.save(train_dataloader, "train_dataloader.pt")
-    torch.save(val_dataloader, "val_dataloader.pt")
-    torch.save(test_dataloader, "test_dataloader.pt")
+    torch.save(train_dataloader, "train_dataloader9.pt")
+    torch.save(val_dataloader, "val_dataloader9.pt")
+    torch.save(test_dataloader, "test_dataloader9.pt")
 
                     
                             
     
 if __name__ == '__main__':
-    PATH = "C:\\Users\\sondr\\OneDrive\\Desktop\\dataset_3D"
-    CLASSES = 3
+    #PATH = "C:\\Users\\sondr\\OneDrive\\Desktop\\dataset_3D"
+    PATH = "C:\\Users\\andre\\Desktop\\Andreas\\Studier\\Diverse\\Utveksling\\Padova\\3D\Project\\3D-project\\dataset_3D"
+    CLASSES = 9
     
     #! 1. Necessary functions to run no matter config
     # parse_arCH_dataset_to_numpy(PATH)

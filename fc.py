@@ -11,13 +11,10 @@ class segNet(nn.Module):
         super(segNet, self).__init__()
 
         self.fc = nn.Sequential(
-            nn.Linear(9, 64),
+            nn.Linear(9, 512),
             nn.ReLU(),
-            nn.BatchNorm1d(64),
-            nn.Linear(64, 32),
-            nn.ReLU(),
-            nn.BatchNorm1d(32),
-            nn.Linear(32, 3),
+            nn.BatchNorm1d(512),
+            nn.Linear(512, 3),
         )
 
     def forward(self, X):
@@ -82,7 +79,7 @@ if __name__ == '__main__':
                 print('\nValidation accuracy: {}'.format(val_acc))
                 
                 # Save the best model
-                if val_acc > best_acc + 0.003:
+                if val_acc > best_acc + 0.006:
                     best_acc = val_acc
                     index = i * len(train_dataloader) + j
                     torch.save(model.state_dict(), 'best_model.pt')
