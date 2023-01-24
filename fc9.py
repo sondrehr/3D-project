@@ -11,10 +11,10 @@ class segNet(nn.Module):
         super(segNet, self).__init__()
 
         self.fc = nn.Sequential(
-            nn.Linear(9, 512),
+            nn.Linear(9, 256),
             nn.ReLU(),
-            nn.BatchNorm1d(512),
-            nn.Linear(512, 3),
+            nn.BatchNorm1d(256),
+            nn.Linear(256, 9),
         )
 
     def forward(self, X):
@@ -26,9 +26,13 @@ if __name__ == '__main__':
     EPOCHS = 1
     
     # Load the dataloaders and change labels
-    train_dataloader = torch.load('shifted_train_dataloader.pt')
-    val_dataloader = torch.load('shifted_val_dataloader.pt')
-    test_dataloader = torch.load('shifted_test_dataloader.pt')
+    # train_dataloader = torch.load('shifted_train_dataloader.pt')
+    # val_dataloader = torch.load('shifted_val_dataloader.pt')
+    # test_dataloader = torch.load('shifted_test_dataloader.pt')
+
+    train_dataloader = torch.load('train_dataloader9.pt')
+    val_dataloader = torch.load('val_dataloader9.pt')
+    test_dataloader = torch.load('test_dataloader9.pt')
     
     # Create the model
     model = segNet()        
@@ -59,7 +63,7 @@ if __name__ == '__main__':
 
             # one hot encoding
             labels = torch.tensor(labels, dtype=torch.long)
-            labels = F.one_hot(labels, num_classes=3)
+            labels = F.one_hot(labels, num_classes=9)
             labels = labels.float()
             
             loss = loss_fn(output, labels)
@@ -87,7 +91,7 @@ if __name__ == '__main__':
                 print('\nValidation accuracy: {}'.format(val_acc))
                 
                 # Save the best model
-                if val_acc > best_acc + 0.006: #0.001
+                if val_acc > best_acc + 0.001: #0.001
                     best_acc = val_acc
                     index = i * len(train_dataloader) + j
                     torch.save(model.state_dict(), 'best_model.pt')
