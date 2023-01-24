@@ -165,6 +165,11 @@ def normalize_dataset(PATH):
                 data[:, 0] -= np.mean(data[:, 0])
                 data[:, 1] -= np.mean(data[:, 1])
                 data[:, 2] -= np.mean(data[:, 2])
+                
+                # only shift x, y to mean and z to min
+                # data[:, 0] -= np.mean(data[:, 0])
+                # data[:, 1] -= np.mean(data[:, 1])
+                # data[:, 2] -= np.min(data[:, 2])
 
                 name = os.path.basename(file).split(".")[0]
                 torch.save(data, folder + "\\" + name + "_norm.pt")
@@ -190,7 +195,6 @@ def rgb_to_hsv(PATH):
                 rgb = data[:, 3:6]
                 hsv = cv2.cvtColor(np.uint8([rgb]), cv2.COLOR_RGB2HSV)[0]
                 data[:, 3:6] = hsv
-                #data = np.concatenate((data, hsv), axis=1)
                 
                 name = os.path.basename(file).split(".")[0]
                 torch.save(data, folder + "\\" + name + "_hsv.pt")
@@ -249,36 +253,46 @@ def data_to_dataloader(PATH):
                     val_data = np.delete(val, 6, axis=1)
                     
                     val_dataset.append(val_data)
-                    val_labelset.append(val_label)    
+                    val_labelset.append(val_label)
+                    
+    torch.save(train_dataset, "individual_scenes\\train_dataset.pt")
+    torch.save(val_dataset, "individual_scenes\\val_dataset.pt")
+    torch.save(test_dataset, "individual_scenes\\test_dataset.pt")
+    
+    torch.save(train_labelset, "individual_scenes\\train_labelset.pt")
+    torch.save(val_labelset, "individual_scenes\\val_labelset.pt")
+    torch.save(test_labelset, "individual_scenes\\test_labelset.pt")    
                           
     ## Concatenate all the data together
-    train_dataset = np.concatenate(train_dataset)
-    val_dataset = np.concatenate(val_dataset)
-    test_dataset = np.concatenate(test_dataset)
+    # train_dataset = np.concatenate(train_dataset)
+    # val_dataset = np.concatenate(val_dataset)
+    # test_dataset = np.concatenate(test_dataset)
     
-    train_labelset = np.concatenate(train_labelset)
-    val_labelset = np.concatenate(val_labelset)    
-    test_labelset = np.concatenate(test_labelset)
+    # train_labelset = np.concatenate(train_labelset)
+    # val_labelset = np.concatenate(val_labelset)    
+    # test_labelset = np.concatenate(test_labelset)
     
     ## Shuffle scenes so the model doesn't end up learning one scene perticularly good
-    train_permute = np.random.permutation(len(train_dataset))
-    val_permute = np.random.permutation(len(val_dataset))
-    test_permute = np.random.permutation(len(test_dataset))
+    # train_permute = np.random.permutation(len(train_dataset))
+    # val_permute = np.random.permutation(len(val_dataset))
+    # test_permute = np.random.permutation(len(test_dataset))
     
-    train_dataset = train_dataset[train_permute]
-    val_dataset = val_dataset[val_permute]
-    test_dataset = test_dataset[test_permute]
+    # train_dataset = train_dataset[train_permute]
+    # val_dataset = val_dataset[val_permute]
+    # test_dataset = test_dataset[test_permute]
     
-    train_labelset = train_labelset[train_permute]
-    val_labelset = val_labelset[val_permute]
-    test_labelset = test_labelset[test_permute]
+    # train_labelset = train_labelset[train_permute]
+    # val_labelset = val_labelset[val_permute]
+    # test_labelset = test_labelset[test_permute]
     
-    ## Convert to tensors
-    train_data = TensorDataset(torch.from_numpy(train_dataset), torch.from_numpy(train_labelset))
-    val_data = TensorDataset(torch.from_numpy(val_dataset), torch.from_numpy(val_labelset))
-    test_data = TensorDataset(torch.from_numpy(test_dataset), torch.from_numpy(test_labelset))
     
-    ## Create dataloaders
+    
+    # ## Convert to tensors
+    # train_data = TensorDataset(torch.from_numpy(train_dataset), torch.from_numpy(train_labelset))
+    # val_data = TensorDataset(torch.from_numpy(val_dataset), torch.from_numpy(val_labelset))
+    # test_data = TensorDataset(torch.from_numpy(test_dataset), torch.from_numpy(test_labelset))
+    
+    # ## Create dataloaders
     train_dataloader = DataLoader(train_data, batch_size=128, shuffle=True)
     val_dataloader = DataLoader(val_data, batch_size=128)
     test_dataloader = DataLoader(test_data, batch_size=128)
@@ -289,6 +303,7 @@ def data_to_dataloader(PATH):
     torch.save(val_dataloader, "val_dataloader9.pt")
     torch.save(test_dataloader, "test_dataloader9.pt")
 
+    # ## Save dataloaders
     # torch.save(train_dataloader, "hsv_train_dataloader.pt")
     # torch.save(val_dataloader, "hsv_val_dataloader.pt")
     # torch.save(test_dataloader, "hsv_test_dataloader.pt")
@@ -313,7 +328,7 @@ if __name__ == '__main__':
     
     #! 3. Add to increase test accuracy
     # normalize_dataset(PATH)
-    rgb_to_hsv(PATH)
+    # rgb_to_hsv(PATH)
     
     #! 4. Prepare data for training
     data_to_dataloader(PATH)

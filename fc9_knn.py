@@ -1,43 +1,80 @@
 import torch
 from tqdm import tqdm
 from torch import nn
+from torch_geometric import nn as gnn
 import torch.nn.functional as F
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-
-class segNet(nn.Module):
+from utilities import *
+    
+class DGCNN(nn.Module):
     def __init__(self):
-        super(segNet, self).__init__()
-
-        self.fc = nn.Sequential(
-            nn.Linear(9, 256),
+        super(DGCNN, self).__init__()
+        
+        self.fc9_64 = nn.Linear(9, 64)
+        self.fc64_64 = nn.Linear(64, 64)
+        self.fc96_1024 = nn.Linear(96, 1024)
+        
+        self.classifier = nn.Sequential(
+            nn.Linear(1216, 256),
             nn.ReLU(),
             nn.Linear(256, 256),
             nn.ReLU(),
-            nn.Linear(256, 3),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 3),
         )
-
+        
     def forward(self, X):
+        # Block 1
+        X = knn(X, 20)
+        X = self.fc9_64(X)
+        X1 = torch.max(X, 1)[0]
+        print(X1.shape)
+        print("Block 1 done")
         
+        # Block 2
+        X2 = knn(X1.detach(), 20)
+        X2 = self.fc64_64(X2)
+        X2 = torch.max(X2, 1)[0]
+        print(X2.shape)
+        print("Block 2 done")
         
-        X = self.fc(X)  
+        # Block 3
+        X3 = knn(X2.detach(), 20)
+        X3 = self.fc64_64(X3)
+        X3 = torch.max(X3, 1)[0]
+        print(X3.shape)
+        print("Block 3 done")
+
+        X = torch.cat((X1, X2, X3), 1)
+        X = nn.MaxPool1d(2)(X)
+        X = self.fc96_1024(X)
+        X = torch.cat((X1, X2, X3, X), 1)
+        print(X.shape)
+        print("DGCNN done")
+        
+        X = self.classifier(X)
         return X
+    
     
 if __name__ == '__main__':
     LR = 1e-3
     EPOCHS = 1
     
-    # Load the dataloaders and change labels
-    train_dataloader = torch.load('hsv_train_dataloader.pt')
-    val_dataloader = torch.load('hsv_val_dataloader.pt')
-    test_dataloader = torch.load('hsv_test_dataloader.pt')
+    # Load the datasets and labels
+    train_dataset = torch.load('individual_scenes\\train_dataset.pt')
+    val_dataset = torch.load('individual_scenes\\val_dataset.pt')
+    test_dataset = torch.load('individual_scenes\\test_dataset.pt')
+    
+    train_labels = torch.load('individual_scenes\\train_labelset.pt')
+    val_labels = torch.load('individual_scenes\\val_labelset.pt')
+    test_labels = torch.load('individual_scenes\\test_labelset.pt')
     
     # Create the model
-    model = segNet()        
-    if torch.cuda.is_available():
-        model = model.cuda()
-    
+    model = DGCNN()
+
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     
@@ -50,64 +87,86 @@ if __name__ == '__main__':
     early_stop = False
     for i in range(EPOCHS):
         print('Epoch: ', str(i))
-        for j, (data, labels) in enumerate(tqdm(train_dataloader)):
+        for j, (train_data) in enumerate(tqdm(train_dataset)):
             model.train()
-            data = data.float()
-            if torch.cuda.is_available():
-                data = data.cuda()
-                labels = labels.cuda()
-                        
-            optimizer.zero_grad()
-            output = model(data)
-
-            # one hot encoding
-            labels = torch.tensor(labels, dtype=torch.long)
-            labels = F.one_hot(labels, num_classes=3)
-            labels = labels.float()
             
-            loss = loss_fn(output, labels)
-            loss.backward()
-            optimizer.step()
+            # divide the data into batches of ~40000
+            length = len(train_data)
+            batch = 1
+            while True:
+                if length//batch < 40000:
+                    break
+                batch += 1
             
-            if j % 3000 == 0:
+            # train the model on each batch
+            for k in range(batch):
+                print("total len: ", len(train_data))
+                print("from: ", (k)*len(train_data)//batch , " to: ", (k+1)*len(train_data)//batch)
             
-                ## Validate the model
-                model.eval()
+                labels = train_labels[j][k*len(train_data)//batch:(k+1)*len(train_data)//batch]
+                data = train_data[k*len(train_data)//batch:(k+1)*len(train_data)//batch]
+                
+                print(data.shape)
+                print(labels.shape)
+                optimizer.zero_grad()
+                output = model(data)
+                
+                # one hot encoding
+                labels = torch.tensor(labels, dtype=torch.long)
+                labels = F.one_hot(labels, num_classes=3)
+                labels = labels.float()
+                
+                loss = loss_fn(output, labels)
+                print("loss: ", loss)
+                loss.backward()
+                optimizer.step()
+            
+            # Validation
+            model.eval()
+            total_per_scene = 0
+            correct_per_scene = 0
+            for i in range(len(val_dataset)):
+                
+                # divide the data into batches of ~40000
+                length = len(val_dataset[i])
+                batch = 1
+                while True:
+                    if length//batch < 40000:
+                        break
+                    batch += 1
+                    
+                # test the model on each batch
                 total = 0
-                correct = 0
-                for (data, labels) in tqdm(val_dataloader):
-                    data = data.float()
-                    if torch.cuda.is_available():
-                        data = data.cuda()
-                        labels = labels.cuda()
-                        
+                correct = 0    
+                for k in range(batch):
+                    print(len(val_dataset[i]))
+                    print("from: ", (k)*len(val_dataset[i])//batch , " to: ", (k+1)*len(val_dataset[i])//batch)
+                    
+                    labels = val_labels[i][k*len(val_dataset[i])//batch:(k+1)*len(val_dataset[i])//batch]
+                    data = val_dataset[i][k*len(val_dataset[i])//batch:(k+1)*len(val_dataset[i])//batch]
+                    
                     output = model(data)
                     _, predicted = torch.max(output.data, 1)
+                    predicted = predicted.numpy()
                     
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item() 
-                val_acc = correct / total
-                print('\nValidation accuracy: {}'.format(val_acc))
-                
-                # Save the best model
-                if val_acc > best_acc + 0.001:
-                    best_acc = val_acc
-                    index = i * len(train_dataloader) + j
-                    torch.save(model.state_dict(), 'best_model.pt')
-                    print('Model saved')
-                   
-                # early stopping 
-                if i * len(train_dataloader) + j > index + 15000:
-                    early_stop = True
-                    print('Early stopping')
-                    break
-                
-                writer.add_scalar('Loss/train', loss, i * len(train_dataloader) + j)
-                writer.add_scalar('Accuracy/val', val_acc, i * len(train_dataloader) + j)
+                    total += len(labels)
+                    correct += np.sum(predicted == labels)
+                    
+                total_per_scene += total
+                correct_per_scene += correct
+                    
+                print('Validation accuracy for scene {}: {}'.format(i, correct / total))
+            val_acc = correct_per_scene / total_per_scene
+            print('Validation accuracy: {}'.format(val_acc))
+            
+            writer.add_scalar('Loss/train', loss, i * len(train_dataset) + j)
+            writer.add_scalar('Accuracy/val', val_acc, i * len(train_dataset) + j)
                 
         if early_stop: break
     
     print('Training completed')
+    
+    torch.save(model.state_dict(), 'best_model.pt')
     
     ###########################################################################
     print('Testing the model...')
@@ -118,12 +177,9 @@ if __name__ == '__main__':
         model.eval()
         correct = 0
         total = 0
-        for i, (data, labels) in enumerate(tqdm(test_dataloader)):
-            data = data.float()
-            if torch.cuda.is_available():
-                data = data.cuda()
-                labels = labels.cuda()
-               
+        for i, (data) in enumerate(tqdm(test_dataset)):
+            labels = test_labels[i]
+ 
             output = model(data)
             _, predicted = torch.max(output.data, 1)
             
